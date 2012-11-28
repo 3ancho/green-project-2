@@ -74,7 +74,7 @@ def jacobian_cdas( func, scl, lint=0.8, tol=1e-12, eps = 1e-30, withScl = False 
 class Arm( object ):
   def __init__(self):
     # link lengths
-    self.ll = asarray([2,2,5])
+    self.ll = asarray([3,4.55,8])
     # arm geometry to draw
     d=0.2
     hexa = asarray([
@@ -89,23 +89,29 @@ class Arm( object ):
         [ 0, 1, 0,-1, 0, 0, 1, 0,-1, 0],
         [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ],
     ]).T
+
     geom = concatenate([
       hexa, hexa[:,[0,2,1,3]], sqr,
     ], axis=0)
+
     self.geom = [( asarray([[0,0,0,1]]) ).T ]
     tw = []
     LL = 0
+
     for n,ll in enumerate(self.ll):
       self.geom.append( 
-        ( asarray([ll,1,1,1])*geom+[LL,0,0,0] ).T
+        ( asarray([ll,1,2,1])*geom+[LL,0,0,0] ).T
       )
       if n == 0:
         w = asarray([0,0,1])
       else:
         w = asarray([0,1,0])
+      print n, " and ", w
+
       v = -cross(w,[LL,0,0])
       tw.append( concatenate([v,w],0) )
       LL += ll
+
     self.tw = asarray(tw)
     self.tool = asarray([LL,0,0,1]).T
     # overwrite method with jacobian function
