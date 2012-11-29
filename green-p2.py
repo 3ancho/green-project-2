@@ -9,7 +9,6 @@ from numpy import *
 from scipy.linalg import * 
 from matplotlib.pyplot import *
 
-
 def jacobian_cdas( func, scl, lint=0.8, tol=1e-12, eps = 1e-30, withScl = False ):
   """Compute Jacobian of a function based on auto-scaled central differences.
   
@@ -199,15 +198,23 @@ class ArmApp( JoyApp ):
     self.top = self.robot.at.top
     self.mid = self.robot.at.mid
     self.bot = self.robot.at.bot
+
     self.factor = factor
+    self.points = [] # list of coners
+
     self.testing = testing
 
   def _get_ang(self):
-    poses = [self.bot.get_pos(), self.mid.get_pos(), self.top.get_pos()] 
-    ang = [item * pi / 18000 for item in poses]
+    poses = self._get_pos() 
+    ang = [item * math.pi / 18000 for item in poses]
     return ang
 
-   
+  def _get_pos(self):
+    return self.bot.get_pos(), self.mid.get_pos(), self.top.get_pos() 
+
+  def _ang2pos(self, ang):
+    return [item * 18000 / math.pi for item in ang] 
+
   def onStart(self):
     self.arm = Arm()
     self.ang = [0,0,0]
@@ -220,17 +227,39 @@ class ArmApp( JoyApp ):
       progress("simulator started") 
 
   def onEvent(self,evt):
-
-    # Exit
     if evt.type == KEYDOWN and evt.key in [ K_ESCAPE ]: # Esc 
-        progress("Exiting!")
-        self.stop()
+      progress("Exiting!")
+      self.stop()
+
+    if evt.type == KEYDOWN and evt.key == K_1: 
+      self.points = []
+      progress("Adding point: 0,0")
+      self.points.append(self._get_ang())
+    if evt.type == KEYDOWN and evt.key == K_2: 
+      progress("Adding point: 0,1")
+      self.points.append(self._get_ang())
+    if evt.type == KEYDOWN and evt.key == K_3: 
+      progress("Adding point: 1,1")
+      self.points.append(self._get_ang())
+    if evt.type == KEYDOWN and evt.key == K_4: 
+      progress("Adding point: 1,0")
+      self.points.append(self._get_ang())
+      poses = self._ang2pos(self.points[3])
+      self.bot.set_pos(poses[0])
+      self.mid.set_pos(poses[1])
+      self.top.set_pos(poses[2])
+      print self.points
+
+    if evt.type == KEYDOWN and evt.key == K_n: # Move a vector 
+      d = self.arm.getTool(self.points[2]) - self.arm.getTool(self.points[3])  
+      print list(d[:3])
+      self.move(list(d[:3])) 
 
     if evt.type == KEYDOWN and evt.key == K_h: # help 
-        progress("Press 'h' to, well you see this")
-        progress("Press 's' to go slack or stop simulator")
-        progress("Press 'r' to reset pos to (0,0,0), proceed with caution")
-        progress("Press 'p' to sample a position and plot it in simulator")
+      progress("Press 'h' to, well you see this")
+      progress("Press 's' to go slack or stop simulator")
+      progress("Press 'r' to reset pos to (0,0,0), proceed with caution")
+      progress("Press 'p' to sample a position and plot it in simulator")
 
     if evt.type == KEYDOWN and evt.key == K_s: # go slack 
       self.top.go_slack()
@@ -270,18 +299,20 @@ class ArmApp( JoyApp ):
       progress("input format error")
       return
 
+    self.ang = self._get_ang()
     pre_ang = self.ang
     Jt = self.arm.getToolJac(self.ang)
     self.ang = self.ang + dot(pinv(Jt)[:,:len(d)],d)
     print "pre angles: ", pre_ang
     print "Angles: ", self.ang
     for i in range(3):
-      if abs(self.ang[i] - pre_ang[i]) > pi/2:
+      if abs(self.ang[i] - pre_ang[i]) > 3.0 * math.pi / 4.0:
         print "angle range error"
         return
 
     length = math.sqrt( d[0]**2 + d[1]**2 + d[2]**2 ) 
     n = int( length / self.factor) + 1
+    print "N is ", n
 
     pos = asarray([self.top.get_pos(), self.mid.get_pos(), self.bot.get_pos()])
     step = asarray(self.ang) * 18000 / math.pi / n # [a,b,c]
@@ -290,9 +321,9 @@ class ArmApp( JoyApp ):
       time.sleep(0.2)
       print pos
       pos += step
-      self.top.set_pos(pos[0])
+      self.bot.set_pos(pos[0])
       self.mid.set_pos(pos[1])
-      self.bot.set_pos(pos[2])
+      self.top.set_pos(pos[2])
 
 class SimulatorPlan( Plan ):
   def __init__(self, app, intervel=0.8):
