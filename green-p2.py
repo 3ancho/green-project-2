@@ -81,9 +81,10 @@ def jacobian_cdas( func, scl, lint=0.8, tol=1e-12, eps = 1e-30, withScl = False 
 class Arm( object ):
   def __init__(self):
     # link lengths
-    self.ll = asarray([3,4.55,8])
+    # self.ll = asarray([3,4.55,8])
+    self.ll = asarray([2.8,4.55,8])
     # arm geometry to draw
-    d=0.2
+    d=0
     hexa = asarray([
         [ 0, d,1-d, 1, 1-d, d, 0],
         [ 0, 1,  1, 0,  -1,-1, 0],
@@ -107,7 +108,7 @@ class Arm( object ):
 
     for n,ll in enumerate(self.ll):
       self.geom.append( 
-        ( asarray([ll,1,2,1])*geom+[LL,0,0,0] ).T
+        ( asarray([ll,1,1,1])*geom+[LL,0,0,0] ).T
       )
       if n == 0:
         w = asarray([0,0,1])
@@ -213,7 +214,7 @@ class ArmApp( JoyApp ):
     return self.bot.get_pos(), self.mid.get_pos(), self.top.get_pos() 
 
   def _ang2pos(self, ang):
-    return [item * 18000 / math.pi for item in ang] 
+    return [int(item * 18000.0 / math.pi) for item in ang] 
 
   def onStart(self):
     self.arm = Arm()
@@ -291,39 +292,71 @@ class ArmApp( JoyApp ):
     return super( ArmApp, self).onStop()
 
   def move(self, d): # d is a vector
-    self.top.mem[self.top.mcu.torque_limit] = 200
-    self.mid.mem[self.mid.mcu.torque_limit] = 200
-    self.bot.mem[self.bot.mcu.torque_limit] = 200
+    self.bot.mem[self.bot.mcu.torque_limit] = 400
+    self.mid.mem[self.mid.mcu.torque_limit] = 400
+    self.top.mem[self.top.mcu.torque_limit] = 400
     
     if type(d) != list or len(d) != 3:
       progress("input format error")
       return
-
+    if 0 in d: 
+      return
+    
+    # Get current angles 
     self.ang = self._get_ang()
     pre_ang = self.ang
-    Jt = self.arm.getToolJac(self.ang)
-    self.ang = self.ang + dot(pinv(Jt)[:,:len(d)],d)
-    print "pre angles: ", pre_ang
-    print "Angles: ", self.ang
-    for i in range(3):
-      if abs(self.ang[i] - pre_ang[i]) > 3.0 * math.pi / 4.0:
-        print "angle range error"
-        return
+
+    ## angle difference
+    #difference = [
+    #  abs(self.ang[0] - pre_ang[0]),
+    #  abs(self.ang[1] - pre_ang[1]),
+    #  abs(self.ang[2] - pre_ang[2]),
+    #]
+    #torque_bot = difference[0] / min(difference)
+    #torque_mid = difference[1] / min(difference)
+    #torque_top = difference[2] / min(difference)
+    #print [torque_bot, torque_mid, torque_top]
+    #self.bot.mem[self.bot.mcu.torque_limit] = int(50 * torque_bot) 
+    #self.mid.mem[self.mid.mcu.torque_limit] = int(50 * torque_mid)
+    #self.top.mem[self.top.mcu.torque_limit] = int(50 * torque_top)
+
+    #for i in range(3):
+    #  if abs(self.ang[i] - pre_ang[i]) > 3.0 * math.pi / 4.0:
+    #    print "angle range error"
+    #    return
 
     length = math.sqrt( d[0]**2 + d[1]**2 + d[2]**2 ) 
-    n = int( length / self.factor) + 1
+    n = int( length / self.factor)
     print "N is ", n
 
-    pos = asarray([self.top.get_pos(), self.mid.get_pos(), self.bot.get_pos()])
-    step = asarray(self.ang) * 18000 / math.pi / n # [a,b,c]
+
     
     for i in range(n):
-      time.sleep(0.2)
-      print pos
-      pos += step
-      self.bot.set_pos(pos[0])
-      self.mid.set_pos(pos[1])
-      self.top.set_pos(pos[2])
+      time.sleep(0.4)
+      Jt = self.arm.getToolJac(self.ang)
+      step_d = [1.0 * (i+1) / n * item for item in d]
+      self.ang = self.ang + dot(pinv(Jt)[:,:len(d)], step_d)
+      print "step d: ", step_d
+      print "Angles: ", self.ang
+      print "Coors: ", self.arm.getTool(self.ang)
+
+      pos = self._ang2pos(self.ang)
+      skip = False
+      if i == 0:
+        pre_pos = pos
+      for j in range(3):
+        print "testing"
+        print "pre ", pre_pos
+        print "pos ", pos
+        if abs(pre_pos[j] - pos[j]) > 1500:
+          skip = True
+      if not skip:
+        pre_pos = pos
+        print "pos: ", pos
+
+        self.bot.set_pos(pos[0])
+        self.mid.set_pos(pos[1])
+        self.top.set_pos(pos[2])
 
 class SimulatorPlan( Plan ):
   def __init__(self, app, intervel=0.8):
