@@ -214,8 +214,8 @@ class ArmApp( JoyApp ):
     self.top.mem[self.top.mcu.torque_limit] = 200
     self.mid.mem[self.mid.mcu.torque_limit] = 200
     self.bot.mem[self.bot.mcu.torque_limit] = 200
+    self.simulator_plan = SimulatorPlan(self) 
     if self.testing:
-      self.simulator_plan = SimulatorPlan(self) 
       self.simulator_plan.start()
       progress("simulator started") 
 
@@ -225,6 +225,12 @@ class ArmApp( JoyApp ):
     if evt.type == KEYDOWN and evt.key in [ K_ESCAPE ]: # Esc 
         progress("Exiting!")
         self.stop()
+
+    if evt.type == KEYDOWN and evt.key == K_h: # help 
+        progress("Press 'h' to, well you see this")
+        progress("Press 's' to go slack or stop simulator")
+        progress("Press 'r' to reset pos to (0,0,0), proceed with caution")
+        progress("Press 'p' to sample a position and plot it in simulator")
 
     if evt.type == KEYDOWN and evt.key == K_s: # go slack 
       self.top.go_slack()
@@ -292,11 +298,13 @@ class SimulatorPlan( Plan ):
   def __init__(self, app, intervel=0.8):
     Plan.__init__(self, app)
     self.intervel = intervel
-
+  
   def onStart(self):
     self.f = gcf()
 
   def simulator_draw(self, ang=None):
+    if not f in locals():
+      self.f = gcf()
     if not ang:
       ang = self.app._get_ang() 
     if ang:  
