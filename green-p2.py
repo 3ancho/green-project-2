@@ -7,6 +7,7 @@ import math
 from collections import deque
 from numpy import *  
 from scipy.linalg import * 
+from matplotlib.pyplot import *
 
 
 def jacobian_cdas( func, scl, lint=0.8, tol=1e-12, eps = 1e-30, withScl = False ):
@@ -77,7 +78,6 @@ def jacobian_cdas( func, scl, lint=0.8, tol=1e-12, eps = 1e-30, withScl = False 
       return res, s
     return res
   return centDiffJacAutoScl 
-
 
 class Arm( object ):
   def __init__(self):
@@ -177,120 +177,144 @@ class Arm( object ):
     axis(ax)
     grid(1)
     xlabel('X'); ylabel('Y')
+
     subplot(2,2,2)
-    self.plotIJ(ang,2,1)
+    self.plotIJ(ang,1,2)
     axis('equal')
     axis(ax)
     grid(1)
-    xlabel('Z'); ylabel('Y')
+    xlabel('Y'); ylabel('Z')
+
     subplot(2,2,3)
     self.plotIJ(ang,0,2)
     axis('equal')
     axis(ax)
     grid(1)
     xlabel('X'); ylabel('Z')
-
-
-def example():
-  """
-  Run an example of a robot arm
-  
-  This can be steered via inverse Jacobian, or positioned.
-  """
-  a = Arm()
-  f = gcf()
-  ang = [0,0,0]
-  while 1:
-    f.set(visible=0)
-    clf()
-    a.plot3D(ang)
-    f.set(visible=1)
-    draw()
-    print "Angles: ",ang
-    d = input("direction as list / angles as tuple?>")
-    if type(d) == list:
-      Jt = a.getToolJac(ang)
-      ang = ang + dot(pinv(Jt)[:,:len(d)],d)
-    else:
-      ang = d
-  
-
-
   
 class ArmApp( JoyApp ):
+  def __init__(self, factor = 0.1, testing=False, *arg, **kw):
+    JoyApp.__init__(self, robot = {'count': 3},  *arg,**kw)
+    # short-cut for modules
+    self.top = self.robot.at.top
+    self.mid = self.robot.at.mid
+    self.bot = self.robot.at.bot
+    self.factor = factor
+    self.testing = testing
 
-   def __init__(self, factor = 0.1, testing=False, *arg, **kw):
-     JoyApp.__init__(self, robot = {'count': 3},  *arg,**kw)
-     # short-cut for modules
-     self.top = self.robot.at.top
-     self.mid = self.robot.at.mid
-     self.bot = self.robot.at.bot
-     self.factor = factor
- 
-   def onStart(self):
-     self.arm = Arm()
-     self.ang = [0,0,0]
-     self.top.mem[self.top.mcu.torque_limit] = 400
-     self.mid.mem[self.mid.mcu.torque_limit] = 400
-     self.bot.mem[self.bot.mcu.torque_limit] = 400
+  def _get_ang(self):
+    poses = [self.bot.get_pos(), self.mid.get_pos(), self.top.get_pos()] 
+    ang = [item * pi / 18000 for item in poses]
+    return ang
 
-   def onEvent(self,evt):
-
-     # Exit
-     if evt.type == KEYDOWN and evt.key in [ K_ESCAPE ]: # Esc 
-         progress("Exiting!")
-         self.stop()
-
-     if evt.type == KEYDOWN and evt.key == K_n: #
-       pass
    
-     if evt.type == KEYDOWN and evt.key == K_m: # Move a vector 
-       d = input("input a direction as list > ")
-       self.move(d) 
+  def onStart(self):
+    self.arm = Arm()
+    self.ang = [0,0,0]
+    self.top.mem[self.top.mcu.torque_limit] = 200
+    self.mid.mem[self.mid.mcu.torque_limit] = 200
+    self.bot.mem[self.bot.mcu.torque_limit] = 200
+    if self.testing:
+      self.simulator_plan = SimulatorPlan(self) 
+      self.simulator_plan.start()
+      progress("simulator started") 
 
-     if evt.type == KEYDOWN and evt.key == K_r: #
-       progress( "Reset to origin pos")
-       self.top.set_pos(0)
-       self.mid.set_pos(0)
-       self.bot.set_pos(0)
+  def onEvent(self,evt):
 
-   def onStop(self):
-     for i in range(3):
-         self.robot.off()
-     progress("The application have been stopped.")
-     return super( ArmApp, self).onStop()
+    # Exit
+    if evt.type == KEYDOWN and evt.key in [ K_ESCAPE ]: # Esc 
+        progress("Exiting!")
+        self.stop()
 
-   def move(self, d): # d is a vector
-     if type(d) != list or len(d) != 3:
-       progress("input format error")
-       return
+    if evt.type == KEYDOWN and evt.key == K_s: # go slack 
+      self.top.go_slack()
+      self.mid.go_slack()
+      self.bot.go_slack()
+      self.simulator_plan.stop()
+  
+    if evt.type == KEYDOWN and evt.key == K_m: # Move a vector 
+      d = input("input a direction as list > ")
+      self.move(d) 
 
-     pre_ang = self.ang
-     Jt = self.arm.getToolJac(self.ang)
-     self.ang = self.ang + dot(pinv(Jt)[:,:len(d)],d)
-     print "pre angles: ", pre_ang
-     print "Angles: ", self.ang
-     for i in range(3):
-       if abs(self.ang[i] - pre_ang[i]) > pi/2:
-         print "angle range error"
-         return
+    if evt.type == KEYDOWN and evt.key == K_r: #
+      progress( "Reset to origin pos")
+      self.top.set_pos(0)
+      self.mid.set_pos(0)
+      self.bot.set_pos(0)
 
-     length = math.sqrt( d[0]**2 + d[1]**2 + d[2]**2 ) 
-     n = int( length / self.factor) + 1
+    if evt.type == KEYDOWN and evt.key == K_p: # Print real world coordinates
+      ang = self._get_ang() 
+      # draw
+      self.simulator_plan.simulator_draw(ang)
 
-     pos = asarray([self.top.get_pos(), self.mid.get_pos(), self.bot.get_pos()])
-     step = asarray(self.ang) * 18000 / math.pi / n # [a,b,c]
-     
-     for i in range(n):
-       time.sleep(0.2)
-       print pos
-       pos += step
-       self.top.set_pos(pos[0])
-       self.mid.set_pos(pos[1])
-       self.bot.set_pos(pos[2])
+      print self.arm.getTool(ang) 
+
+  def onStop(self):
+    for i in range(3):
+        self.robot.off()
+    progress("The application have been stopped.")
+    return super( ArmApp, self).onStop()
+
+  def move(self, d): # d is a vector
+    self.top.mem[self.top.mcu.torque_limit] = 200
+    self.mid.mem[self.mid.mcu.torque_limit] = 200
+    self.bot.mem[self.bot.mcu.torque_limit] = 200
+    
+    if type(d) != list or len(d) != 3:
+      progress("input format error")
+      return
+
+    pre_ang = self.ang
+    Jt = self.arm.getToolJac(self.ang)
+    self.ang = self.ang + dot(pinv(Jt)[:,:len(d)],d)
+    print "pre angles: ", pre_ang
+    print "Angles: ", self.ang
+    for i in range(3):
+      if abs(self.ang[i] - pre_ang[i]) > pi/2:
+        print "angle range error"
+        return
+
+    length = math.sqrt( d[0]**2 + d[1]**2 + d[2]**2 ) 
+    n = int( length / self.factor) + 1
+
+    pos = asarray([self.top.get_pos(), self.mid.get_pos(), self.bot.get_pos()])
+    step = asarray(self.ang) * 18000 / math.pi / n # [a,b,c]
+    
+    for i in range(n):
+      time.sleep(0.2)
+      print pos
+      pos += step
+      self.top.set_pos(pos[0])
+      self.mid.set_pos(pos[1])
+      self.bot.set_pos(pos[2])
+
+class SimulatorPlan( Plan ):
+  def __init__(self, app, intervel=0.8):
+    Plan.__init__(self, app)
+    self.intervel = intervel
+
+  def onStart(self):
+    self.f = gcf()
+
+  def simulator_draw(self, ang=None):
+    if not ang:
+      ang = self.app._get_ang() 
+    if ang:  
+      print ang
+      # draw
+      self.f.set(visible=0)
+      clf()
+      self.app.arm.plot3D(ang)
+      self.f.set(visible=1)
+      draw()
+
+  def behavior(self):
+    while True:
+      self.simulator_draw()
+      yield self.forDuration(self.intervel)
 
 def main():
-    app = ArmApp()
+    app = ArmApp(testing=True)
     app.run()
 
 if __name__ == '__main__':

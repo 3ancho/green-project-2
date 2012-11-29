@@ -198,6 +198,7 @@ def example():
     a.plot3D(ang)
     f.set(visible=1)
     draw()
+    print "coor: ",a.getTool(ang)
     print "Angles: ",ang
     d = input("direction as list / angles as tuple?>")
     if type(d) == list:
