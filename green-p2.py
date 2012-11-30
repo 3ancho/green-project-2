@@ -84,7 +84,7 @@ class Arm( object ):
     # self.ll = asarray([3,4.55,8])
     self.ll = asarray([2.8,4.55,8])
     # arm geometry to draw
-    d=0
+    d=0.2
     hexa = asarray([
         [ 0, d,1-d, 1, 1-d, d, 0],
         [ 0, 1,  1, 0,  -1,-1, 0],
@@ -256,6 +256,11 @@ class ArmApp( JoyApp ):
       print list(d[:3])
       self.move(list(d[:3])) 
 
+    if evt.type == KEYDOWN and evt.key == K_b: # Move a vector in simulator
+      d = self.arm.getTool(self.points[2]) - self.arm.getTool(self.points[3])  
+      print list(d[:3])
+      self.move(list(d[:3]), testing=True) 
+
     if evt.type == KEYDOWN and evt.key == K_h: # help 
       progress("Press 'h' to, well you see this")
       progress("Press 's' to go slack or stop simulator")
@@ -291,10 +296,10 @@ class ArmApp( JoyApp ):
     progress("The application have been stopped.")
     return super( ArmApp, self).onStop()
 
-  def move(self, d): # d is a vector
-    self.bot.mem[self.bot.mcu.torque_limit] = 400
-    self.mid.mem[self.mid.mcu.torque_limit] = 400
-    self.top.mem[self.top.mcu.torque_limit] = 400
+  def move(self, d, testing=False): # d is a vector
+    self.bot.mem[self.bot.mcu.torque_limit] = 200
+    self.mid.mem[self.mid.mcu.torque_limit] = 200
+    self.top.mem[self.top.mcu.torque_limit] = 200
     
     if type(d) != list or len(d) != 3:
       progress("input format error")
@@ -306,38 +311,20 @@ class ArmApp( JoyApp ):
     self.ang = self._get_ang()
     pre_ang = self.ang
 
-    ## angle difference
-    #difference = [
-    #  abs(self.ang[0] - pre_ang[0]),
-    #  abs(self.ang[1] - pre_ang[1]),
-    #  abs(self.ang[2] - pre_ang[2]),
-    #]
-    #torque_bot = difference[0] / min(difference)
-    #torque_mid = difference[1] / min(difference)
-    #torque_top = difference[2] / min(difference)
-    #print [torque_bot, torque_mid, torque_top]
-    #self.bot.mem[self.bot.mcu.torque_limit] = int(50 * torque_bot) 
-    #self.mid.mem[self.mid.mcu.torque_limit] = int(50 * torque_mid)
-    #self.top.mem[self.top.mcu.torque_limit] = int(50 * torque_top)
-
-    #for i in range(3):
-    #  if abs(self.ang[i] - pre_ang[i]) > 3.0 * math.pi / 4.0:
-    #    print "angle range error"
-    #    return
-
     length = math.sqrt( d[0]**2 + d[1]**2 + d[2]**2 ) 
     n = int( length / self.factor)
     print "N is ", n
 
+    step_ang = None
+    step_d = None
 
-    
     for i in range(n):
-      time.sleep(0.4)
+      time.sleep(0.1)
       Jt = self.arm.getToolJac(self.ang)
-      step_d = [1.0 * (i+1) / n * item for item in d]
+      step_d = [1.0 / n * item for item in d]
       self.ang = self.ang + dot(pinv(Jt)[:,:len(d)], step_d)
       print "step d: ", step_d
-      print "Angles: ", self.ang
+      print "Angles: ", self.ang 
       print "Coors: ", self.arm.getTool(self.ang)
 
       pos = self._ang2pos(self.ang)
@@ -350,6 +337,13 @@ class ArmApp( JoyApp ):
         print "pos ", pos
         if abs(pre_pos[j] - pos[j]) > 1500:
           skip = True
+
+      if testing:
+        pre_pos = pos
+        self.simulator_plan.simulator_draw(step_ang)
+        print "simulator drawing ", step_ang
+        continue
+
       if not skip:
         pre_pos = pos
         print "pos: ", pos
