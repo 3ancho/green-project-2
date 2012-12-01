@@ -200,6 +200,7 @@ class ArmApp( JoyApp ):
     self.mid = self.robot.at.mid
     self.bot = self.robot.at.bot
 
+    self.edge_len = 101 # mm
     self.factor = factor
     self.points = [] # list of coners
 
@@ -215,6 +216,15 @@ class ArmApp( JoyApp ):
 
   def _ang2pos(self, ang):
     return [int(item * 18000.0 / math.pi) for item in ang] 
+
+  def _convert_co(self, plan_co):
+    """ plan_co is the coordinate in 2-d plan """
+    ab_ratio = plan_co[0] * 1.0 / self.edge_len 
+    ad_ratio = plan_co[1] * 1.0 / self.edge_len 
+    result = self.arm.getTool(self.points[0])[0:3] + \
+             asarray(self.ab) * ab_ratio + \
+             asarray(self.ad) * ad_ratio
+    return result
 
   def onStart(self):
     self.arm = Arm()
@@ -249,7 +259,37 @@ class ArmApp( JoyApp ):
       self.bot.set_pos(poses[0])
       self.mid.set_pos(poses[1])
       self.top.set_pos(poses[2])
-      print self.points
+      progress("Those are conoers (abcd): " + str(self.points))
+      # get vector ab, ad
+      self.ab = (self.arm.getTool(self.points[1]) -\
+                self.arm.getTool(self.points[0])) [:3]
+      self.ad = (self.arm.getTool(self.points[3]) -\
+                self.arm.getTool(self.points[0])) [:3]
+      progress("ab: %s , ad: %s \n" % (self.ab, self.ad))
+      # set coordinates
+
+    if evt.type == KEYDOWN and evt.key == K_g: # Draw Stroks 
+      self.ang = self._get_ang()
+      strokes = input("input strokes as 2-d array > ")
+      progress("1: " + str(strokes[0][0]) +"2: " + str(strokes[0][1]))
+      progress(str(strokes))
+      for stroke in strokes:
+        start_point = self._convert_co(stroke[0])
+        end_point = self._convert_co(stroke[1])
+        print "start: ",start_point
+        print "end: ",end_point
+
+        # move to start_point, pen up
+        # start_point is real world co
+        d = start_point - self.arm.getTool(self.ang)[:3]  
+        print "moving from ang to start", list(d[:3])
+        self.move(list(d[:3])) 
+
+        # move to end point, pen down
+        # end_point is real world co
+        d = end_point - start_point  
+        print "moving from start to end", list(d[:3])
+        self.move(list(d[:3])) 
 
     if evt.type == KEYDOWN and evt.key == K_n: # Move a vector 
       d = self.arm.getTool(self.points[2]) - self.arm.getTool(self.points[3])  
@@ -297,6 +337,7 @@ class ArmApp( JoyApp ):
     return super( ArmApp, self).onStop()
 
   def move(self, d, testing=False): # d is a vector
+    print "d is !!!:   ", d
     self.bot.mem[self.bot.mcu.torque_limit] = 200
     self.mid.mem[self.mid.mcu.torque_limit] = 200
     self.top.mem[self.top.mcu.torque_limit] = 200
