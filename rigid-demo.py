@@ -201,9 +201,11 @@ def example():
     print "coor: ",a.getTool(ang)
     print "Angles: ",ang
     d = input("direction as list / angles as tuple?>")
+    # [1,1,1]
     if type(d) == list:
-      Jt = a.getToolJac(ang)
+      Jt = a.getToolJac(ang) #Jt pre angs
       ang = ang + dot(pinv(Jt)[:,:len(d)],d)
+      # ang = destination ang
     else:
       ang = d
   

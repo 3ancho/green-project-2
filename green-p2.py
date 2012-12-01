@@ -193,7 +193,7 @@ class Arm( object ):
     xlabel('X'); ylabel('Z')
   
 class ArmApp( JoyApp ):
-  def __init__(self, factor = 0.1, testing=False, *arg, **kw):
+  def __init__(self, factor = 0.03, testing=False, *arg, **kw):
     JoyApp.__init__(self, robot = {'count': 3},  *arg,**kw)
     # short-cut for modules
     self.top = self.robot.at.top
@@ -319,7 +319,7 @@ class ArmApp( JoyApp ):
     step_d = None
 
     for i in range(n):
-      time.sleep(0.1)
+      time.sleep(0.02)
       Jt = self.arm.getToolJac(self.ang)
       step_d = [1.0 / n * item for item in d]
       self.ang = self.ang + dot(pinv(Jt)[:,:len(d)], step_d)
