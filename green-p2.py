@@ -219,12 +219,25 @@ class ArmApp( JoyApp ):
 
   def _convert_co(self, plan_co):
     """ plan_co is the coordinate in 2-d plan """
-    ab_ratio = plan_co[0] * 1.0 / self.edge_len 
-    ad_ratio = plan_co[1] * 1.0 / self.edge_len 
+    ab_ratio = plan_co[1] * 1.0 / self.edge_len 
+    ad_ratio = plan_co[0] * 1.0 / self.edge_len 
     result = self.arm.getTool(self.points[0])[0:3] + \
              asarray(self.ab) * ab_ratio + \
              asarray(self.ad) * ad_ratio
     return result
+
+  def _get_direction_vector(self):
+    """ self.ab self.ad are real world 3-d """
+    direction = asarray(self.ab) * asarray(self.ad)
+    self._direction = 0.5 * direction / np.linalg.norm(direction) 
+
+  def _up(self):
+    print self._direction[:3]
+    self.move(list(self._direction[:3]))
+
+  def _down(self):
+    print -1 * self._direction[:3]
+    self.move(list(-1 * self._direction[:3]))
 
   def onStart(self):
     self.arm = Arm()
@@ -265,6 +278,7 @@ class ArmApp( JoyApp ):
                 self.arm.getTool(self.points[0])) [:3]
       self.ad = (self.arm.getTool(self.points[3]) -\
                 self.arm.getTool(self.points[0])) [:3]
+      self._get_direction_vector()
       progress("ab: %s , ad: %s \n" % (self.ab, self.ad))
       # set coordinates
 
@@ -283,12 +297,16 @@ class ArmApp( JoyApp ):
         # start_point is real world co
         d = start_point - self.arm.getTool(self.ang)[:3]  
         print "moving from ang to start", list(d[:3])
+        self._up()
+        print "upupup"
         self.move(list(d[:3])) 
 
         # move to end point, pen down
         # end_point is real world co
         d = end_point - start_point  
         print "moving from start to end", list(d[:3])
+        self._down()
+        print "downdowndown"
         self.move(list(d[:3])) 
 
     if evt.type == KEYDOWN and evt.key == K_n: # Move a vector 
@@ -337,7 +355,9 @@ class ArmApp( JoyApp ):
     return super( ArmApp, self).onStop()
 
   def move(self, d, testing=False): # d is a vector
-    print "d is !!!:   ", d
+    # print "d is !!!:   ", d
+    if d[2] == 1.5:
+      print "up!!!!"
     self.bot.mem[self.bot.mcu.torque_limit] = 200
     self.mid.mem[self.mid.mcu.torque_limit] = 200
     self.top.mem[self.top.mcu.torque_limit] = 200
@@ -346,7 +366,7 @@ class ArmApp( JoyApp ):
       progress("input format error")
       return
     if 0 in d: 
-      return
+      pass
     
     # Get current angles 
     self.ang = self._get_ang()
@@ -364,30 +384,30 @@ class ArmApp( JoyApp ):
       Jt = self.arm.getToolJac(self.ang)
       step_d = [1.0 / n * item for item in d]
       self.ang = self.ang + dot(pinv(Jt)[:,:len(d)], step_d)
-      print "step d: ", step_d
-      print "Angles: ", self.ang 
-      print "Coors: ", self.arm.getTool(self.ang)
+      #print "step d: ", step_d
+      #print "Angles: ", self.ang 
+      #print "Coors: ", self.arm.getTool(self.ang)
 
       pos = self._ang2pos(self.ang)
       skip = False
       if i == 0:
         pre_pos = pos
       for j in range(3):
-        print "testing"
-        print "pre ", pre_pos
-        print "pos ", pos
+        #print "testing"
+        #print "pre ", pre_pos
+        #print "pos ", pos
         if abs(pre_pos[j] - pos[j]) > 1500:
           skip = True
 
       if testing:
         pre_pos = pos
         self.simulator_plan.simulator_draw(step_ang)
-        print "simulator drawing ", step_ang
+        #print "simulator drawing ", step_ang
         continue
 
       if not skip:
         pre_pos = pos
-        print "pos: ", pos
+        #print "pos: ", pos
 
         self.bot.set_pos(pos[0])
         self.mid.set_pos(pos[1])
@@ -407,7 +427,7 @@ class SimulatorPlan( Plan ):
     if not ang:
       ang = self.app._get_ang() 
     if ang:  
-      print ang
+      #print ang
       # draw
       self.f.set(visible=0)
       clf()
