@@ -82,7 +82,7 @@ class Arm( object ):
   def __init__(self):
     # link lengths
     # self.ll = asarray([3,4.55,8])
-    self.ll = asarray([2.8,4.55,8])
+    self.ll = asarray([2.875,4.55,8])
     # arm geometry to draw
     d=0.2
     hexa = asarray([
