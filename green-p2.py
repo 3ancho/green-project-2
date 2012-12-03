@@ -200,7 +200,7 @@ class ArmApp( JoyApp ):
     self.mid = self.robot.at.mid
     self.bot = self.robot.at.bot
 
-    self.edge_len = 101 # mm
+    self.edge_len = 203 # mm
     self.factor = factor
     self.points = [] # list of coners
 
@@ -228,16 +228,16 @@ class ArmApp( JoyApp ):
 
   def _get_direction_vector(self):
     """ self.ab self.ad are real world 3-d """
-    direction = asarray(self.ab) * asarray(self.ad)
-    self._direction = 0.5 * direction / np.linalg.norm(direction) 
+    direction = cross(asarray(self.ab), asarray(self.ad))
+    self._direction = 0.8 * direction / np.linalg.norm(direction) 
+    print "direction is !!!!!!!! :", self._direction
 
   def _up(self):
-    print self._direction[:3]
-    self.move(list(self._direction[:3]))
+    self.move(list(-1 * self._direction[:3]))
 
   def _down(self):
-    print -1 * self._direction[:3]
-    self.move(list(-1 * self._direction[:3]))
+    self.move(list(self._direction[:3]))
+    #self.move([0,0,-0.5])
 
   def onStart(self):
     self.arm = Arm()
@@ -356,8 +356,6 @@ class ArmApp( JoyApp ):
 
   def move(self, d, testing=False): # d is a vector
     # print "d is !!!:   ", d
-    if d[2] == 1.5:
-      print "up!!!!"
     self.bot.mem[self.bot.mcu.torque_limit] = 200
     self.mid.mem[self.mid.mcu.torque_limit] = 200
     self.top.mem[self.top.mcu.torque_limit] = 200
